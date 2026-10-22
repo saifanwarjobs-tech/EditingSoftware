@@ -20,7 +20,7 @@ upload -> transcribe (HyperFrames CLI / Whisper) -> cuts (rules + optional Claud
 ## Abhi nahi hai (next steps)
 - Sound effects, music auto-fade, beat-sync (voice cleanup, music + ducking done)
 - HyperFrames-based designed captions (templates, emphasis words, behind-subject text); abhi captions libass se bante hain (`src/captions.js`)
-- Zoom/emphasis, highlight clip selection, user accounts, persistent job queue
+- Zoom/emphasis, highlight clip selection, transcript review/edit screen
 
 ## Setup
 Requirements: Node.js 22+, FFmpeg (libass ke saath), internet (pehli baar Whisper model download).
@@ -56,12 +56,21 @@ CLI: `node src/cli.js video.mp4 --music assets/music/track.mp3 --music-volume 0.
 - `GET /api/jobs/:id` -> `{status, stage, report}` (queued/processing/done/error)
 - `GET /api/jobs/:id/video`, `GET /api/jobs/:id/captions`
 
-## Production se pehle zaroor karo
-- Login/auth aur rate limit lagao (abhi koi nahi hai, koi bhi upload kar sakta hai).
-- Jobs memory mein hain; restart par status jaata hai. Redis/DB queue lagao.
-- Rendering heavy hai: concurrency 1 hai, scale ke liye worker/Lambda/Cloud Run.
+## Security aur limits (v0.5)
+- **Login:** `.env` mein `ACCESS_TOKENS` daalo (comma se alag, har code ek user). Bina iske server open rehta hai aur start par warning aati hai.
+  Har user sirf apni jobs dekh sakta hai. Login attempts limited hain (10 / 10 min / IP).
+- **Rate limit:** `RATE_LIMIT_PER_HOUR` uploads per user. **Queue cap:** `MAX_QUEUE`. **Video length cap:** `MAX_VIDEO_MINUTES`.
+- **Persistent jobs:** har job `data/jobs/<id>/job.json` mein save hoti hai. Restart par adhoori jobs dobara chalti hain (max 2 koshish).
+- **Auto cleanup:** `RETENTION_HOURS` ke baad finished jobs aur adhoore uploads delete ho jaate hain.
+- `GET /healthz` health check ke liye (load balancer / uptime monitor).
+- Video streaming mein Range support hai (iPhone/Safari mein preview chalega).
+
+## Abhi bhi baaki hai (bade traffic se pehle)
+- HTTPS (nginx/Caddy/Cloudflare) lagao, aur `TRUST_PROXY=1`, `SECURE_COOKIES=1` set karo.
+- Access codes manually bante hain; asli signup/payment ke liye database + user accounts chahiye.
+- Rendering ek time par ek hi hoti hai; zyada load ke liye alag worker machines / Lambda / Cloud Run.
+- Files local disk par hain; scale ke liye S3-type storage.
 - Hindi captions ke liye `CAPTION_FONT=Noto Sans Devanagari` set karo, aur transcript review screen do.
-- Uploaded videos ko storage (S3 etc.) mein rakho aur purani files delete karo.
 
 ## License
 MIT (apna naam `LICENSE` mein daalo). HyperFrames Apache-2.0 hai, `NOTICE` dekho.

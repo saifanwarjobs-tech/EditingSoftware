@@ -20,11 +20,21 @@
   #status.err { color: var(--err); }
   video { width: 100%; margin-top: 1rem; border-radius: 6px; background: #000; }
   a { color: var(--accent); }
+  #loginStatus { color: var(--err); margin-top: .5rem; }
 </style>
 </head>
 <body>
   <h1>Auto Video Editor</h1>
   <p class="sub">Raw talking-head video upload karo. Pauses aur fillers hat jaayenge, captions lag jaayenge.</p>
+
+  <div id="login" hidden>
+    <label for="code">Access code</label>
+    <input id="code" type="password" autocomplete="current-password">
+    <button id="loginBtn">Login</button>
+    <div id="loginStatus" role="alert"></div>
+  </div>
+
+  <div id="app" hidden>
 
   <label for="file">Video file</label>
   <input id="file" type="file" accept="video/*">
@@ -60,9 +70,32 @@
   <div id="status" role="status"></div>
   <div id="result"></div>
 
+  </div>
+
 <script>
 const $ = (id) => document.getElementById(id);
-fetch('/api/music').then(r=>r.json()).then(({tracks})=>{ for (const t of tracks) $('music').add(new Option(t, t)); });
+let musicLoaded = false;
+async function loadMusic() {
+  if (musicLoaded) return;
+  const r = await fetch('/api/music');
+  if (!r.ok) return;
+  for (const t of (await r.json()).tracks) $('music').add(new Option(t, t));
+  musicLoaded = true;
+}
+async function checkAuth() {
+  const me = await (await fetch('/api/me')).json();
+  const ok = !me.authRequired || me.authenticated;
+  $('login').hidden = ok; $('app').hidden = !ok;
+  if (ok) loadMusic();
+  return ok;
+}
+$('loginBtn').onclick = async () => {
+  const r = await fetch('/api/login', { method: 'POST', body: JSON.stringify({ token: $('code').value }) });
+  if (!r.ok) { $('loginStatus').textContent = (await r.json()).error || 'Login fail'; return; }
+  $('code').value = ''; $('loginStatus').textContent = '';
+  checkAuth();
+};
+checkAuth();
 const labels = { queued:"Queue mein hai", probing:"Video check ho rahi hai", transcribing:"Awaaz ko text mein badal rahe hain", "smart-cut":"Smart cuts dhundh rahe hain", "cleaning-audio":"Awaaz saaf ho rahi hai", "planning-cuts":"Cuts plan ho rahe hain", rendering:"Video render ho rahi hai", done:"Ho gaya" };
 function setStatus(t, err) { $("status").textContent = t; $("status").className = err ? "err" : ""; }
 
@@ -80,12 +113,15 @@ $("go").onclick = async () => {
     const { id } = await r.json();
     while (true) {
       await new Promise((s) => setTimeout(s, 2000));
-      const s = await (await fetch("/api/jobs/" + id)).json();
+      const resp = await fetch("/api/jobs/" + id);
+      const s = await resp.json();
+      if (resp.status === 401) { checkAuth(); throw new Error("Session khatam, dobara login karo."); }
+      if (!resp.ok) throw new Error(s.error || "Server error");
       if (s.status === "error") throw new Error(s.error);
       if (s.status === "done") {
         const rep = s.report;
         setStatus(`Ho gaya. ${rep.originalSeconds}s se ${rep.editedSeconds}s (${rep.removedSeconds}s hataye).`);
-        $("result").innerHTML = `<video controls src="/api/jobs/${id}/video"></video><p><a href="/api/jobs/${id}/video">Video download</a> · <a href="/api/jobs/${id}/captions">Captions (.srt)</a></p>`;
+        $("result").innerHTML = `<video controls src="/api/jobs/${id}/video"></video><p><a href="/api/jobs/${id}/video?download=1">Video download</a> · <a href="/api/jobs/${id}/captions?download=1">Captions (.srt)</a></p>`;
         break;
       }
       setStatus((labels[s.stage] || s.stage) + "...");

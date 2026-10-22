@@ -42,3 +42,11 @@ test("end-to-end with background music", { skip: !hasFfmpeg }, async () => {
   const info = await probe(r.output);
   assert.ok(info.hasAudio && info.hasVideo);
 });
+
+test("videos longer than the limit are rejected before any work", { skip: !hasFfmpeg }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ave-long-"));
+  const input = join(dir, "in.mp4");
+  execFileSync("ffmpeg", ["-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=25:duration=4",
+    "-f", "lavfi", "-i", "sine=frequency=440:duration=4", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", input], { stdio: "ignore" });
+  await assert.rejects(processVideo({ input, workDir: join(dir, "out"), maxDurationSeconds: 2 }), /too long/);
+});

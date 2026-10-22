@@ -17,6 +17,7 @@ import { cleanAudioInPlace } from "./audio.js";
  * @param {boolean} [o.smart]    use Claude for repeat-take / tangent removal
  * @param {boolean} [o.captions] burn captions into the video (default true)
  * @param {string} [o.language]  e.g. "en", "hi"
+ * @param {number} [o.maxDurationSeconds] reject longer videos (cost control)
  * @param {string} [o.captionStyle] plain | karaoke | pop (default plain)
  * @param {boolean} [o.cleanAudio] noise reduction + loudness normalisation (default true)
  * @param {number} [o.lufs]      target loudness, -14 (YouTube/Reels) or -16 (podcast)
@@ -27,11 +28,14 @@ import { cleanAudioInPlace } from "./audio.js";
  * @param {(stage:string)=>void} [o.onStage]
  */
 export async function processVideo(o) {
-  const { input, workDir, strength = "medium", smart = false, captions = true, captionStyle = "plain", language, transcriptPath, cleanAudio = true, lufs = -14, noiseReduction = 12, music = null, musicVolume = 0.18, onStage = () => {} } = o;
+  const { input, workDir, strength = "medium", smart = false, captions = true, captionStyle = "plain", language, transcriptPath, cleanAudio = true, lufs = -14, noiseReduction = 12, maxDurationSeconds = 0, music = null, musicVolume = 0.18, onStage = () => {} } = o;
   await mkdir(workDir, { recursive: true });
 
   onStage("probing");
   const info = await probe(input);
+  if (maxDurationSeconds && info.duration > maxDurationSeconds) {
+    throw new Error(`Video is too long (${Math.round(info.duration / 60)} min). Maximum is ${Math.round(maxDurationSeconds / 60)} min.`);
+  }
 
   onStage("transcribing");
   const words = transcriptPath ? await loadTranscriptFile(transcriptPath) : await transcribe(input, workDir, { language });
