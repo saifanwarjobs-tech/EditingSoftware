@@ -1,7 +1,7 @@
 // Zero-dependency HTTP server: upload a raw video, poll the job, download the result.
 import { createServer } from "node:http";
 import { createReadStream, createWriteStream, existsSync } from "node:fs";
-import { mkdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { extname, join, resolve } from "node:path";
 import { config } from "./config.js";
@@ -34,8 +34,17 @@ const json = (res, code, body) => {
 };
 const isId = (s) => /^[0-9a-f-]{36}$/.test(s);
 const ALLOWED_EXT = new Set([".mp4", ".mov", ".mkv", ".webm", ".m4v"]);
+const MUSIC_RE = /^[\w][\w .()-]*\.(mp3|wav|m4a|aac|ogg)$/i;
+
+async function listMusic() {
+  try { return (await readdir(config.musicDir)).filter((f) => MUSIC_RE.test(f)).sort(); } catch { return []; }
+}
 
 async function handleUpload(req, res, url) {
+  // music is chosen from the server-side library only (never a client-supplied path)
+  const musicName = url.searchParams.get("music");
+  const music = musicName && (await listMusic()).includes(musicName) ? join(config.musicDir, musicName) : null;
+  if (musicName && !music) return json(res, 400, { error: "Unknown music track" });
   const ext = extname(url.searchParams.get("filename") ?? "video.mp4").toLowerCase();
   if (!ALLOWED_EXT.has(ext)) return json(res, 400, { error: "Unsupported file type" });
   const declared = Number(req.headers["content-length"] ?? 0);
@@ -68,6 +77,8 @@ async function handleUpload(req, res, url) {
         captions: url.searchParams.get("captions") !== "0",
         cleanAudio: url.searchParams.get("audio") !== "0",
         lufs: url.searchParams.get("lufs") === "-16" ? -16 : -14,
+        music,
+        musicVolume: Math.min(1, Math.max(0.02, Number(url.searchParams.get("musicVolume")) || 0.18)),
       },
     });
     pump();
@@ -92,6 +103,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       return res.end(await readFile(resolve("public/index.html")));
     }
+    if (req.method === "GET" && url.pathname === "/api/music") return json(res, 200, { tracks: await listMusic() });
     if (req.method === "POST" && url.pathname === "/api/jobs") return handleUpload(req, res, url);
 
     const m = url.pathname.match(/^\/api\/jobs\/([^/]+)(?:\/(video|captions))?$/);

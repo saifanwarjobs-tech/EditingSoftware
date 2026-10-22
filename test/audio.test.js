@@ -47,3 +47,37 @@ test("cleanAudio hits the target loudness; silent audio does not crash", { skip:
   const r2 = await cleanAudio({ input: silent, output: silentOut });
   assert.equal(r2.twoPass, false);
 });
+
+import { buildAudioGraph } from "../src/audio.js";
+
+test("audio graph: no music = plain chain, music = sidechain ducking graph", () => {
+  const plain = buildAudioGraph({ pre: "highpass=f=80", loudnorm: "loudnorm=I=-14" });
+  assert.equal(plain.usesComplex, false);
+  const mixed = buildAudioGraph({ pre: "highpass=f=80", loudnorm: "loudnorm=I=-14", music: true, musicVolume: 0.5 });
+  assert.equal(mixed.usesComplex, true);
+  assert.match(mixed.filter, /sidechaincompress/);
+  assert.match(mixed.filter, /volume=0.5/);
+  assert.match(mixed.filter, /amix=inputs=2:duration=first/);
+  assert.match(buildAudioGraph({ pre: "x", loudnorm: "y", music: true, musicVolume: 99 }).filter, /volume=1\b/); // clamped
+});
+
+test("music is ducked while the voice speaks and recovers in the pause", { skip: !hasFfmpeg }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ave-m-"));
+  const input = join(dir, "in.mp4"), music = join(dir, "m.wav"), output = join(dir, "out.mp4");
+  // voice: 300 Hz for 2 s, then 3 s of silence. music: constant 1000 Hz (shorter than the video => must loop)
+  execFileSync("ffmpeg", ["-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=25:duration=5", "-filter_complex",
+    "sine=frequency=300:duration=2[a];anullsrc=r=44100:cl=mono,atrim=duration=3[b];[a][b]concat=n=2:v=0:a=1[aud]",
+    "-map", "0:v", "-map", "[aud]", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", input], { stdio: "ignore" });
+  execFileSync("ffmpeg", ["-y", "-f", "lavfi", "-i", "sine=frequency=1000:duration=2", music], { stdio: "ignore" });
+
+  await cleanAudio({ input, output, music, musicVolume: 0.3, denoise: false });
+
+  const musicLevel = async (from, to) => {
+    const { err } = await run("ffmpeg", ["-hide_banner", "-nostdin", "-i", output, "-vn", "-af",
+      `atrim=start=${from}:end=${to},bandpass=f=1000:width_type=h:w=200,volumedetect`, "-f", "null", "-"]);
+    return Number(err.match(/mean_volume: (-?[\d.]+) dB/)[1]);
+  };
+  const duringSpeech = await musicLevel(0.6, 1.6);
+  const duringPause = await musicLevel(3.2, 4.4); // also proves the 2 s music loops to cover the 5 s video
+  assert.ok(duringPause - duringSpeech > 3, `music should be >3 dB quieter under speech (speech ${duringSpeech} dB, pause ${duringPause} dB)`);
+});

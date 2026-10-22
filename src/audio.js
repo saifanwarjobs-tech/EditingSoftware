@@ -33,27 +33,46 @@ export function buildLoudnorm(lufs, measured) {
 }
 
 /**
- * @param {{input:string, output:string, lufs?:number, denoise?:boolean, noiseReduction?:number}} o
+ * Full audio filtergraph. Without music: simple -af chain.
+ * With music: voice chain -> split (one copy drives the ducking) -> music ducked under voice -> mix -> loudnorm.
+ * Returns {filter, usesComplex}.
+ */
+export function buildAudioGraph({ pre, loudnorm, music = false, musicVolume = 0.18 }) {
+  if (!music) return { filter: `${pre},${loudnorm}`, usesComplex: false };
+  const vol = Math.min(1, Math.max(0.02, Number(musicVolume) || 0.18));
+  const filter = [
+    `[0:a]${pre},asplit=2[vo][sc]`,
+    `[1:a]volume=${vol}[m]`,
+    // when the voice (sidechain) is loud, the music is compressed down; it recovers in pauses
+    `[m][sc]sidechaincompress=threshold=0.03:ratio=10:attack=20:release=350:makeup=1[duck]`,
+    `[vo][duck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,${loudnorm}[aout]`,
+  ].join(";");
+  return { filter, usesComplex: true };
+}
+
+/**
+ * @param {{input:string, output:string, lufs?:number, denoise?:boolean, noiseReduction?:number, music?:string, musicVolume?:number}} o
  * @returns {Promise<{measuredLufs:number|null, twoPass:boolean}>}
  */
-export async function cleanAudio({ input, output, lufs = -14, denoise = true, noiseReduction = 12 }) {
+export async function cleanAudio({ input, output, lufs = -14, denoise = true, noiseReduction = 12, music = null, musicVolume = 0.18 }) {
   const pre = buildAudioChain({ denoise, noiseReduction });
+  const inputs = ["-i", input];
+  if (music) inputs.push("-stream_loop", "-1", "-i", music); // loop short tracks; amix duration=first ends with the voice
 
   // Pass 1: measure
-  const { err } = await run("ffmpeg", [
-    "-hide_banner", "-nostdin", "-i", input, "-vn",
-    "-af", `${pre},loudnorm=I=${lufs}:TP=-1.5:LRA=11:print_format=json`,
-    "-f", "null", "-",
-  ]);
+  const g1 = buildAudioGraph({ pre, loudnorm: `loudnorm=I=${lufs}:TP=-1.5:LRA=11:print_format=json`, music: !!music, musicVolume });
+  const measureArgs = ["-hide_banner", "-nostdin", ...inputs, "-vn"];
+  measureArgs.push(...(g1.usesComplex ? ["-filter_complex", g1.filter, "-map", "[aout]"] : ["-af", g1.filter]), "-f", "null", "-");
+  const { err } = await run("ffmpeg", measureArgs);
   const measured = parseLoudnorm(err);
 
   // Pass 2: apply, video copied as-is
-  await run("ffmpeg", [
-    "-hide_banner", "-y", "-nostdin", "-i", input,
-    "-map", "0:v:0?", "-map", "0:a:0", "-c:v", "copy",
-    "-af", `${pre},${buildLoudnorm(lufs, measured)}`,
-    "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", output,
-  ]);
+  const g2 = buildAudioGraph({ pre, loudnorm: buildLoudnorm(lufs, measured), music: !!music, musicVolume });
+  const applyArgs = ["-hide_banner", "-y", "-nostdin", ...inputs, "-map", "0:v:0?"];
+  if (g2.usesComplex) applyArgs.push("-filter_complex", g2.filter, "-map", "[aout]");
+  else applyArgs.push("-map", "0:a:0", "-af", g2.filter);
+  applyArgs.push("-c:v", "copy", "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", output);
+  await run("ffmpeg", applyArgs);
   return { measuredLufs: measured ? Number(measured.input_i) : null, twoPass: !!measured };
 }
 

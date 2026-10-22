@@ -14,4 +14,5 @@ export const config = {
   captionFont: process.env.CAPTION_FONT || "Arial",
   captionFontSize: Number(process.env.CAPTION_FONT_SIZE || 18),
   dataDir: resolve(process.cwd(), "data"),
+  musicDir: resolve(process.cwd(), "assets/music"),
 };

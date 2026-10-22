@@ -19,12 +19,14 @@ import { cleanAudioInPlace } from "./audio.js";
  * @param {string} [o.language]  e.g. "en", "hi"
  * @param {boolean} [o.cleanAudio] noise reduction + loudness normalisation (default true)
  * @param {number} [o.lufs]      target loudness, -14 (YouTube/Reels) or -16 (podcast)
+ * @param {string} [o.music]     path to a background music file (ducked under the voice)
+ * @param {number} [o.musicVolume] 0.02-1, linear (default 0.18)
  * @param {number} [o.noiseReduction] denoise strength in dB, 6-20 (default 12)
  * @param {string} [o.transcriptPath] skip transcription, use this transcript.json/.srt-converted json
  * @param {(stage:string)=>void} [o.onStage]
  */
 export async function processVideo(o) {
-  const { input, workDir, strength = "medium", smart = false, captions = true, language, transcriptPath, cleanAudio = true, lufs = -14, noiseReduction = 12, onStage = () => {} } = o;
+  const { input, workDir, strength = "medium", smart = false, captions = true, language, transcriptPath, cleanAudio = true, lufs = -14, noiseReduction = 12, music = null, musicVolume = 0.18, onStage = () => {} } = o;
   await mkdir(workDir, { recursive: true });
 
   onStage("probing");
@@ -70,10 +72,10 @@ export async function processVideo(o) {
   await cutVideo({ input, output, edl, subtitlesPath, info });
 
   let audioNote = null;
-  if (cleanAudio) {
+  if (cleanAudio || music) { // music needs the audio pass (it mixes + normalises in one go)
     onStage("cleaning-audio");
     try {
-      const a = await cleanAudioInPlace(output, { lufs, noiseReduction });
+      const a = await cleanAudioInPlace(output, { lufs, noiseReduction, denoise: cleanAudio, music, musicVolume });
       audioNote = a.twoPass ? `normalised ${a.measuredLufs} -> ${lufs} LUFS` : "normalised (single pass)";
     } catch (e) {
       audioNote = `audio cleanup failed, kept original audio: ${e.message.slice(0, 200)}`; // never lose the edit over this
@@ -92,7 +94,8 @@ export async function processVideo(o) {
       words: words.length,
       smartRemovals: smartReasons,
       smartNote,
-      audio: cleanAudio ? audioNote : "skipped",
+      audio: cleanAudio || music ? audioNote : "skipped",
+      music: music ? "mixed with auto-ducking" : null,
     },
   };
 }
