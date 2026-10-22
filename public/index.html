@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto Video Editor</title>
+<style>
+  :root { --bg:#fff; --fg:#161616; --muted:#666; --line:#d9d9d9; --accent:#0b57d0; --err:#b3261e; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121212; --fg:#eee; --muted:#9a9a9a; --line:#333; --accent:#8ab4f8; --err:#f2b8b5; } }
+  body { font: 16px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--fg); max-width: 34rem; margin: 3rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; margin-bottom: .25rem; }
+  p.sub { color: var(--muted); margin-top: 0; }
+  label { display: block; margin: 1rem 0 .25rem; font-weight: 600; }
+  select, input[type=file], input[type=text] { width: 100%; padding: .5rem; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit; box-sizing: border-box; }
+  .row { display: flex; gap: .5rem; align-items: center; margin-top: .75rem; }
+  .row label { margin: 0; font-weight: 400; }
+  button { margin-top: 1.25rem; padding: .65rem 1.2rem; border: 0; border-radius: 6px; background: var(--accent); color: var(--bg); font-size: 1rem; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { margin-top: 1.25rem; color: var(--muted); }
+  #status.err { color: var(--err); }
+  video { width: 100%; margin-top: 1rem; border-radius: 6px; background: #000; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+  <h1>Auto Video Editor</h1>
+  <p class="sub">Raw talking-head video upload karo. Pauses aur fillers hat jaayenge, captions lag jaayenge.</p>
+
+  <label for="file">Video file</label>
+  <input id="file" type="file" accept="video/*">
+
+  <label for="strength">Cutting strength</label>
+  <select id="strength">
+    <option value="light">Light (natural pauses rakho)</option>
+    <option value="medium" selected>Medium</option>
+    <option value="aggressive">Aggressive (bahut tight)</option>
+  </select>
+
+  <label for="lang">Language code (optional, e.g. hi, en)</label>
+  <input id="lang" type="text" maxlength="3" placeholder="auto">
+
+  <div class="row"><input id="smart" type="checkbox"><label for="smart">Smart cuts (repeat takes hataye, Claude API key chahiye)</label></div>
+  <div class="row"><input id="captions" type="checkbox" checked><label for="captions">Captions video mein burn karo</label></div>
+
+  <button id="go">Edit karo</button>
+  <div id="status" role="status"></div>
+  <div id="result"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const labels = { queued:"Queue mein hai", probing:"Video check ho rahi hai", transcribing:"Awaaz ko text mein badal rahe hain", "smart-cut":"Smart cuts dhundh rahe hain", "planning-cuts":"Cuts plan ho rahe hain", rendering:"Video render ho rahi hai", done:"Ho gaya" };
+function setStatus(t, err) { $("status").textContent = t; $("status").className = err ? "err" : ""; }
+
+$("go").onclick = async () => {
+  const file = $("file").files[0];
+  if (!file) return setStatus("Pehle video chuno.", true);
+  $("go").disabled = true; $("result").innerHTML = "";
+  setStatus("Upload ho raha hai...");
+  const q = new URLSearchParams({ filename: file.name, strength: $("strength").value, smart: $("smart").checked ? 1 : 0, captions: $("captions").checked ? 1 : 0 });
+  if ($("lang").value) q.set("lang", $("lang").value.trim());
+  try {
+    const r = await fetch("/api/jobs?" + q, { method: "POST", body: file });
+    if (!r.ok) throw new Error((await r.json()).error || "Upload fail");
+    const { id } = await r.json();
+    while (true) {
+      await new Promise((s) => setTimeout(s, 2000));
+      const s = await (await fetch("/api/jobs/" + id)).json();
+      if (s.status === "error") throw new Error(s.error);
+      if (s.status === "done") {
+        const rep = s.report;
+        setStatus(`Ho gaya. ${rep.originalSeconds}s se ${rep.editedSeconds}s (${rep.removedSeconds}s hataye).`);
+        $("result").innerHTML = `<video controls src="/api/jobs/${id}/video"></video><p><a href="/api/jobs/${id}/video">Video download</a> · <a href="/api/jobs/${id}/captions">Captions (.srt)</a></p>`;
+        break;
+      }
+      setStatus((labels[s.stage] || s.stage) + "...");
+    }
+  } catch (e) { setStatus("Error: " + e.message, true); }
+  $("go").disabled = false;
+};
+</script>
+</body>
+</html>
