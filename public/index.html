@@ -39,6 +39,13 @@
   <label for="lang">Language code (optional, e.g. hi, en)</label>
   <input id="lang" type="text" maxlength="3" placeholder="auto">
 
+  <label for="cstyle">Caption style</label>
+  <select id="cstyle">
+    <option value="karaoke">Karaoke (bolte hue word highlight hota hai)</option>
+    <option value="pop">Pop (har phrase scale-in hota hai)</option>
+    <option value="plain">Simple</option>
+  </select>
+
   <div class="row"><input id="smart" type="checkbox"><label for="smart">Smart cuts (repeat takes hataye, Claude API key chahiye)</label></div>
   <div class="row"><input id="captions" type="checkbox" checked><label for="captions">Captions video mein burn karo</label></div>
 
@@ -64,7 +71,7 @@ $("go").onclick = async () => {
   if (!file) return setStatus("Pehle video chuno.", true);
   $("go").disabled = true; $("result").innerHTML = "";
   setStatus("Upload ho raha hai...");
-  const q = new URLSearchParams({ filename: file.name, strength: $("strength").value, smart: $("smart").checked ? 1 : 0, captions: $("captions").checked ? 1 : 0, audio: $("audio").checked ? 1 : 0, musicVolume: $("mvol").value / 100 });
+  const q = new URLSearchParams({ filename: file.name, strength: $("strength").value, smart: $("smart").checked ? 1 : 0, captions: $("captions").checked ? 1 : 0, audio: $("audio").checked ? 1 : 0, musicVolume: $("mvol").value / 100, captionStyle: $("cstyle").value });
   if ($("music").value) q.set("music", $("music").value);
   if ($("lang").value) q.set("lang", $("lang").value.trim());
   try {

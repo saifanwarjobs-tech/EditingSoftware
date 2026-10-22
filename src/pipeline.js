@@ -17,6 +17,7 @@ import { cleanAudioInPlace } from "./audio.js";
  * @param {boolean} [o.smart]    use Claude for repeat-take / tangent removal
  * @param {boolean} [o.captions] burn captions into the video (default true)
  * @param {string} [o.language]  e.g. "en", "hi"
+ * @param {string} [o.captionStyle] plain | karaoke | pop (default plain)
  * @param {boolean} [o.cleanAudio] noise reduction + loudness normalisation (default true)
  * @param {number} [o.lufs]      target loudness, -14 (YouTube/Reels) or -16 (podcast)
  * @param {string} [o.music]     path to a background music file (ducked under the voice)
@@ -26,7 +27,7 @@ import { cleanAudioInPlace } from "./audio.js";
  * @param {(stage:string)=>void} [o.onStage]
  */
 export async function processVideo(o) {
-  const { input, workDir, strength = "medium", smart = false, captions = true, language, transcriptPath, cleanAudio = true, lufs = -14, noiseReduction = 12, music = null, musicVolume = 0.18, onStage = () => {} } = o;
+  const { input, workDir, strength = "medium", smart = false, captions = true, captionStyle = "plain", language, transcriptPath, cleanAudio = true, lufs = -14, noiseReduction = 12, music = null, musicVolume = 0.18, onStage = () => {} } = o;
   await mkdir(workDir, { recursive: true });
 
   onStage("probing");
@@ -63,7 +64,7 @@ export async function processVideo(o) {
     const scale = (info.height || 1080) / 1080;
     await writeFile(
       subtitlesPath,
-      toAss(cues, { font: config.captionFont, size: Math.round(config.captionFontSize * 3 * scale), width: info.width || 1080, height: info.height || 1920 })
+      toAss(cues, { font: config.captionFont, size: Math.round(config.captionFontSize * 3 * scale), width: info.width || 1080, height: info.height || 1920, style: captionStyle })
     );
   }
 

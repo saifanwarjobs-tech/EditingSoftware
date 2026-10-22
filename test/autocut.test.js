@@ -68,3 +68,22 @@ test("normalizeWords accepts several transcript shapes", () => {
   assert.equal(normalizeWords([{ text: "hi", start: 0, end: 1 }]).length, 1);
   assert.equal(normalizeWords({ words: [{ word: "hi", start: 0, end: 1 }] })[0].text, "hi");
 });
+
+import { toAss } from "../src/captions.js";
+
+test("no lonely one-word last caption; cues keep word timings", () => {
+  const ws = ["a","b","c","d","e","f","g."].map((t, i) => W(t, i * 0.3, i * 0.3 + 0.25, i));
+  const cues = groupCues(ws);
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0].words.length, 7);
+});
+
+test("ASS karaoke uses per-word timing tags; pop uses animation; plain is plain", () => {
+  const cues = groupCues([W("Hello", 0, 0.4, 0), W("world", 0.5, 1.0, 1)]);
+  assert.match(toAss(cues, { style: "karaoke" }), /\{\\kf40\}Hello \{\\k10\}\{\\kf50\}world/);
+  assert.match(toAss(cues, { style: "pop" }), /\\t\(0,140,/);
+  const plain = toAss(cues, { style: "plain" });
+  assert.match(plain, /,Hello world\n/);
+  assert.doesNotMatch(plain, /\\kf/);
+  assert.match(toAss(cues, { style: "bogus" }), /,Hello world\n/); // unknown style falls back to plain
+});

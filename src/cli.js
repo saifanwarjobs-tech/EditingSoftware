@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Usage: node src/cli.js input.mp4 [--strength light|medium|aggressive] [--smart] [--no-captions] [--no-audio] [--lufs -14] [--music track.mp3] [--lang hi] [--transcript t.json] [--out dir]
+// Usage: node src/cli.js input.mp4 [--strength light|medium|aggressive] [--smart] [--no-captions] [--caption-style plain|karaoke|pop] [--no-audio] [--lufs -14] [--music track.mp3] [--lang hi] [--transcript t.json] [--out dir]
 import { resolve, basename } from "node:path";
 import { processVideo } from "./pipeline.js";
 
@@ -17,6 +17,7 @@ const result = await processVideo({
   strength: opt("strength") ?? "medium",
   smart: args.includes("--smart"),
   captions: !args.includes("--no-captions"),
+  captionStyle: opt("caption-style") ?? "plain",
   cleanAudio: !args.includes("--no-audio"),
   music: opt("music") ? resolve(opt("music")) : undefined,
   musicVolume: opt("music-volume") ? Number(opt("music-volume")) : 0.18,
