@@ -1,0 +1,5 @@
+This project calls the HyperFrames CLI (https://github.com/heygen-com/hyperframes),
+licensed under the Apache License 2.0, at runtime via `npx hyperframes transcribe`.
+HyperFrames source code is not bundled in this repository.
+If you later copy or modify HyperFrames code or add it as a dependency that you
+redistribute, keep its LICENSE and NOTICE texts as required by Apache 2.0.

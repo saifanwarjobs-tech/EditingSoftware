@@ -1,0 +1,14 @@
+{
+  "name": "auto-video-editor",
+  "version": "0.1.0",
+  "description": "Upload a raw talking-head video: auto-remove pauses/fillers, add captions, get a tight edited MP4.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node src/server.js",
+    "edit": "node src/cli.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "license": "MIT"
+}
