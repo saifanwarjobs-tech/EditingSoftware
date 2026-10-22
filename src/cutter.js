@@ -1,21 +1,9 @@
 // Step 3: cut the video to the EDL with FFmpeg (one re-encode, optional caption burn-in).
-import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
-import { dirname, basename } from "node:path";
-
-function run(cmd, args, opts = {}) {
-  return new Promise((resolve, reject) => {
-    const p = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], ...opts });
-    let out = "", err = "";
-    p.stdout.on("data", (d) => (out += d));
-    p.stderr.on("data", (d) => (err += d));
-    p.on("error", (e) => reject(new Error(e.code === "ENOENT" ? `${cmd} not found. Install FFmpeg.` : e.message)));
-    p.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(`${cmd} failed (${code}): ${err.slice(-800)}`))));
-  });
-}
+import { run } from "./exec.js";
 
 export async function probe(path) {
-  const out = await run("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", path]);
+  const { out } = await run("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", path]);
   const j = JSON.parse(out);
   const v = j.streams.find((s) => s.codec_type === "video");
   const a = j.streams.find((s) => s.codec_type === "audio");

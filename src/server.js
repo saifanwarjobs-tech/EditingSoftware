@@ -66,6 +66,8 @@ async function handleUpload(req, res, url) {
         input, workDir: dir, strength, language: lang,
         smart: url.searchParams.get("smart") === "1",
         captions: url.searchParams.get("captions") !== "0",
+        cleanAudio: url.searchParams.get("audio") !== "0",
+        lufs: url.searchParams.get("lufs") === "-16" ? -16 : -14,
       },
     });
     pump();

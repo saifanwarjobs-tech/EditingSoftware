@@ -25,4 +25,5 @@ test("end-to-end: 8s synthetic video with a 3s gap gets shorter", { skip: !hasFf
   const info = await probe(r.output);
   assert.ok(info.duration < 4, `edited duration ${info.duration}`);
   assert.ok(r.report.removedSeconds > 3);
+  assert.match(r.report.audio, /normalised/);
 });

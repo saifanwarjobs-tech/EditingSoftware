@@ -4,7 +4,7 @@ Raw talking-head video upload karo, aur output mein milega: pauses/fillers hate 
 
 ```
 upload -> transcribe (HyperFrames CLI / Whisper) -> cuts (rules + optional Claude)
-       -> FFmpeg cut + captions burn-in -> output.mp4 + captions.srt
+       -> FFmpeg cut + captions burn-in -> audio cleanup (denoise + loudness) -> output.mp4 + captions.srt
 ```
 
 ## Abhi kya kaam karta hai (v0.1)
@@ -12,10 +12,11 @@ upload -> transcribe (HyperFrames CLI / Whisper) -> cuts (rules + optional Claud
 - Lambi pauses chhoti karna, fillers (umm, uh, हम्म...) hatana, 3 strengths (light/medium/aggressive)
 - Optional smart cuts: repeat takes aur tangents Claude API se (conservative, max 40% limit)
 - Cuts ke baad captions ka timing sahi remap hota hai, 30ms audio fades (click nahi aata)
+- Audio cleanup: noise reduction, voice EQ, compressor, two-pass loudness normalisation (-14 LUFS for Reels/YouTube, -16 for podcasts). Video is copied, not re-encoded.
 - Web upload page + JSON API + CLI. Zero npm dependencies.
 
 ## Abhi nahi hai (next steps)
-- Background music + auto-ducking, sound effects
+- Background music + auto-ducking, sound effects (voice cleanup is done)
 - Designed/animated captions (HyperFrames composition); abhi simple burned-in captions hain (`src/captions.js`)
 - Zoom/emphasis, highlight clip selection, user accounts, persistent job queue
 
@@ -32,6 +33,7 @@ CLI:
 ```bash
 node src/cli.js my-video.mp4 --strength medium --lang hi
 node src/cli.js my-video.mp4 --smart --no-captions
+node src/cli.js my-video.mp4 --lufs -16 --no-audio   # --no-audio skips cleanup
 node src/cli.js my-video.mp4 --transcript transcript.json   # transcription skip
 ```
 
@@ -41,7 +43,7 @@ docker build -t auto-video-editor . && docker run -p 3000:3000 --env-file .env a
 ```
 
 ## API
-- `POST /api/jobs?filename=a.mp4&strength=medium&smart=1&captions=1&lang=hi` : body = raw video bytes -> `{id}`
+- `POST /api/jobs?filename=a.mp4&strength=medium&smart=1&captions=1&audio=1&lufs=-14&lang=hi` : body = raw video bytes -> `{id}`
 - `GET /api/jobs/:id` -> `{status, stage, report}` (queued/processing/done/error)
 - `GET /api/jobs/:id/video`, `GET /api/jobs/:id/captions`
 

@@ -1,0 +1,13 @@
+NAYI FILES (add karo):
+  src/audio.js
+  src/exec.js
+  test/audio.test.js
+
+PURANI FILES (replace karo):
+  src/pipeline.js
+  src/cutter.js
+  src/cli.js
+  src/server.js
+  public/index.html
+  README.md
+  test/pipeline.test.js

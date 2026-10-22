@@ -42,13 +42,15 @@
   <div class="row"><input id="smart" type="checkbox"><label for="smart">Smart cuts (repeat takes hataye, Claude API key chahiye)</label></div>
   <div class="row"><input id="captions" type="checkbox" checked><label for="captions">Captions video mein burn karo</label></div>
 
+  <div class="row"><input id="audio" type="checkbox" checked><label for="audio">Awaaz saaf karo (noise kam + volume normalize)</label></div>
+
   <button id="go">Edit karo</button>
   <div id="status" role="status"></div>
   <div id="result"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const labels = { queued:"Queue mein hai", probing:"Video check ho rahi hai", transcribing:"Awaaz ko text mein badal rahe hain", "smart-cut":"Smart cuts dhundh rahe hain", "planning-cuts":"Cuts plan ho rahe hain", rendering:"Video render ho rahi hai", done:"Ho gaya" };
+const labels = { queued:"Queue mein hai", probing:"Video check ho rahi hai", transcribing:"Awaaz ko text mein badal rahe hain", "smart-cut":"Smart cuts dhundh rahe hain", "cleaning-audio":"Awaaz saaf ho rahi hai", "planning-cuts":"Cuts plan ho rahe hain", rendering:"Video render ho rahi hai", done:"Ho gaya" };
 function setStatus(t, err) { $("status").textContent = t; $("status").className = err ? "err" : ""; }
 
 $("go").onclick = async () => {
@@ -56,7 +58,7 @@ $("go").onclick = async () => {
   if (!file) return setStatus("Pehle video chuno.", true);
   $("go").disabled = true; $("result").innerHTML = "";
   setStatus("Upload ho raha hai...");
-  const q = new URLSearchParams({ filename: file.name, strength: $("strength").value, smart: $("smart").checked ? 1 : 0, captions: $("captions").checked ? 1 : 0 });
+  const q = new URLSearchParams({ filename: file.name, strength: $("strength").value, smart: $("smart").checked ? 1 : 0, captions: $("captions").checked ? 1 : 0, audio: $("audio").checked ? 1 : 0 });
   if ($("lang").value) q.set("lang", $("lang").value.trim());
   try {
     const r = await fetch("/api/jobs?" + q, { method: "POST", body: file });
